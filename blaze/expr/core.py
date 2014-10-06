@@ -8,7 +8,7 @@ from toolz import unique, concat, compose, partial
 import toolz
 from pprint import pprint
 
-from ..compatibility import StringIO, _strtypes, builtins
+from ..compatibility import StringIO, builtins, _strtypes
 from ..dispatch import dispatch
 
 __all__ = ['Node', 'path', 'common_subexpression', 'eval_str']
