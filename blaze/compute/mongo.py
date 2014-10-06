@@ -45,26 +45,24 @@ http://docs.mongodb.org/manual/core/aggregation-pipeline/
 from __future__ import absolute_import, division, print_function
 
 import numbers
+import fnmatch
+import pprint
 
 try:
     from pymongo.collection import Collection
 except ImportError:
     Collection = type(None)
 
-import fnmatch
-from datashape import Record, Tuple
 from datashape.predicates import isscalar
 from toolz import pluck, first, get
 import toolz
 
 from ..expr import (var, Label, std, Sort, count, nunique, Selection, mean,
                     Reduction, Head, ReLabel, Apply, Distinct, ElemWise, By,
-                    TableSymbol, Projection, Field, sum, min, max, Gt, Lt,
-                    Ge, Le, Eq, Ne, Symbol, And, Or, Summary, Like,
-                    Broadcast, DateTime, Microsecond, Date, Time, Expr, Symbol
-                    )
-from .. import expr
-from ..compatibility import _strtypes
+                    Projection, Field, sum, min, max, Gt, Lt, Ge, Le, Eq, Ne,
+                    Symbol, And, Or, Summary, Like, Broadcast, DateTime,
+                    Microsecond, Date, Time, Expr, Symbol)
+from ..compatibility import _strtypes, StringIO
 
 from ..dispatch import dispatch
 
@@ -106,6 +104,14 @@ class MongoQuery(object):
 
     def __hash__(self):
         return hash((type(self), self.info()))
+
+    def __repr__(self):
+        sio = StringIO()
+        pprint.pprint(('*@%s::%s:%s' % (self.coll.database.connection.host,
+                                        self.coll.database.name,
+                                        self.coll.name), self.query),
+                      stream=sio)
+        return sio.getvalue().rstrip('\n')
 
 
 @dispatch((var, Label, std, Sort, count, nunique, Selection, mean, Reduction,
@@ -176,6 +182,20 @@ def compute_sub(t):
 @dispatch((Projection, Field), MongoQuery)
 def compute_up(t, q, **kwargs):
     return q.append({'$project': dict((col, 1) for col in t.fields)})
+
+
+@dispatch(Field, MongoQuery)
+def compute_up(e, q, **kwargs):
+    def compute_field(f):
+        if isinstance(f._child, Field):
+            return '.'.join((compute_field(f._child), f._name))
+        return f._name
+
+    field_expr = compute_field(e)
+
+    d = {'$project': {field_expr: 1} if '.' not in field_expr
+         else {e._name: '$' + field_expr}}
+    return q.append(d)
 
 
 @dispatch(Selection, MongoQuery)
