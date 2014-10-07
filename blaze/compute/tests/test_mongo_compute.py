@@ -1,13 +1,12 @@
 from __future__ import absolute_import, division, print_function
 
-from operator import itemgetter
 import pytest
 pymongo = pytest.importorskip('pymongo')
 
 from datetime import datetime
 from toolz import pluck, reduceby, groupby
 
-from blaze import into, compute, compute_up, discover, dshape
+from blaze import into, compute, compute_up, discover, dshape, Symbol
 
 from blaze.compute.mongo import MongoQuery
 from blaze.expr import TableSymbol, by
@@ -46,6 +45,21 @@ def big_bank(db):
             {'name': 'Bob', 'amount': 300, 'city': 'San Francisco'}]
     coll = db.bigbank
     coll = into(coll, data)
+    yield coll
+    coll.drop()
+
+
+@pytest.yield_fixture
+def nested_data(db):
+    coll = db.nested
+    payments = [{'name': 'Alice', 'payments':
+                 [{'amount': 100, 'when': datetime(2000, 1, 1, 1, 1, 1)},
+                  {'amount': 200, 'when': datetime(2000, 2, 2, 2, 2, 2)}]},
+                {'name': 'Bob', 'payments':
+                 [{'amount': 300, 'when': datetime(2000, 3, 3, 3, 3, 3)},
+                  {'amount': -400, 'when': datetime(2000, 4, 4, 4, 4, 4)},
+                  {'amount': 500, 'when': datetime(2000, 5, 5, 5, 5, 5)}]}]
+    coll = into(coll, payments)
     yield coll
     coll.drop()
 
@@ -160,21 +174,20 @@ def test_projection(t, bank):
 
 
 def test_selection(t, bank):
-    assert set(compute(t[t.name=='Alice'], bank)) == set([('Alice', 100),
+    assert set(compute(t[t.name == 'Alice'], bank)) == set([('Alice', 100),
                                                             ('Alice', 200)])
-    assert set(compute(t['Alice'==t.name], bank)) == set([('Alice', 100),
+    assert set(compute(t['Alice' == t.name], bank)) == set([('Alice', 100),
                                                             ('Alice', 200)])
     assert set(compute(t[t.amount > 200], bank)) == set([('Bob', 300)])
     assert set(compute(t[t.amount >= 200], bank)) == set([('Bob', 300),
                                                           ('Bob', 200),
                                                           ('Alice', 200)])
-    assert set(compute(t[t.name!='Alice'].name, bank)) == set(['Bob'])
-    assert set(compute(t[(t.name=='Alice') & (t.amount > 150)], bank)) == \
-            set([('Alice', 200)])
-    assert set(compute(t[(t.name=='Alice') | (t.amount > 250)], bank)) == \
-            set([('Alice', 200),
-                    ('Alice', 100),
-                    ('Bob', 300)])
+    assert set(compute(t[t.name != 'Alice'].name, bank)) == set(['Bob'])
+    lhs = t.name == 'Alice'
+    rhs = t.amount > 150
+    assert set(compute(t[lhs & rhs], bank)) == set([('Alice', 200)])
+    assert (set(compute(t[(t.name == 'Alice') | (t.amount > 250)], bank)) ==
+            set([('Alice', 200), ('Alice', 100), ('Bob', 300)]))
 
 
 def test_columnwise(p, points):
@@ -337,3 +350,12 @@ def test_datetime_access(date_data):
     for attr in ['day', 'minute', 'second', 'year']:
         assert list(compute(getattr(t.when, attr), date_data)) == \
                 list(compute(getattr(t.when, attr), py_data))
+
+
+def test_nested_selection(nested_data):
+    dshape = 'var * {name: string, payments: var * {amount: int32, when: datetime}}'
+    t = Symbol('t', dshape)
+    e = t.payments.amount
+    result = compute(e, nested_data)
+    r = list(result)
+    assert r == [[100, 200], [300, -400, 500]]
