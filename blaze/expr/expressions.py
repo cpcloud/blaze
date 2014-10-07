@@ -8,8 +8,8 @@ from toolz import concat, memoize, partial
 from datashape import dshape, DataShape, Record, Var
 from datashape.predicates import isscalar, iscollection, isboolean, isrecord
 
+from .core import Node, common_subexpression, path
 from ..compatibility import _strtypes, builtins
-from .core import *
 from .method_dispatch import select_functions
 from ..dispatch import dispatch
 
@@ -67,8 +67,12 @@ class Expr(Node):
     def fields(self):
         if isinstance(self.dshape.measure, Record):
             return self.dshape.measure.names
-        if hasattr(self, '_name'):
+        elif self._name is not None:
             return [self._name]
+
+    @property
+    def _name(self):
+        pass
 
     def _len(self):
         try:
