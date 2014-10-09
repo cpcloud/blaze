@@ -359,3 +359,17 @@ def test_nested_selection(nested_data):
     result = compute(e, nested_data)
     r = list(result)
     assert r == [[100, 200], [300, -400, 500]]
+
+
+def test_selection_with_nested_dshape(nested_data):
+    dshape = 'var * {name: string, payments: var * {amount: int32, when: datetime}}'
+    t = Symbol('t', dshape)
+    e = t.payments
+    result = compute(e, nested_data)
+    r = list(result)
+    expected = [[{'amount': 100, 'when': datetime(2000, 1, 1, 1, 1, 1)},
+                 {'amount': 200, 'when': datetime(2000, 2, 2, 2, 2, 2)}],
+                [{'amount': 300, 'when': datetime(2000, 3, 3, 3, 3, 3)},
+                 {'amount': -400, 'when': datetime(2000, 4, 4, 4, 4, 4)},
+                 {'amount': 500, 'when': datetime(2000, 5, 5, 5, 5, 5)}]]
+    assert r == expected
