@@ -47,6 +47,7 @@ from __future__ import absolute_import, division, print_function
 import numbers
 import fnmatch
 import pprint
+from operator import itemgetter
 
 try:
     from pymongo.collection import Collection
@@ -179,7 +180,7 @@ def compute_sub(t):
     return {compute_sub(op): [compute_sub(t.lhs), compute_sub(t.rhs)]}
 
 
-@dispatch((Projection, Field), MongoQuery)
+@dispatch(Projection, MongoQuery)
 def compute_up(t, q, **kwargs):
     return q.append({'$project': dict((col, 1) for col in t.fields)})
 
@@ -322,6 +323,13 @@ def post_compute(e, c, d):
     return post_compute(e, MongoQuery(c, ()), d)
 
 
+@dispatch(Field, MongoQuery)
+def post_compute_fields(e, q):
+    return toolz.merge(*map(itemgetter('$project'),
+                        (compute_up(getattr(e, f), q).query[1]
+                            for f in e.fields)))
+
+
 @dispatch(Expr, MongoQuery, dict)
 def post_compute(e, q, d):
     """
@@ -333,8 +341,12 @@ def post_compute(e, q, d):
 
     http://docs.mongodb.org/manual/core/aggregation-pipeline/
     """
-    d = {'$project': toolz.merge({'_id': 0},  # remove mongo identifier
-                                 dict((col, 1) for col in e.fields))}
+
+    if isinstance(Expr, Field):
+    else:
+        res = dict((col, 1) for col in e.fields)
+    # remove mongo identifier
+    d = {'$project': toolz.merge({'_id': 0}, res)}
     q = q.append(d)
 
     if not e.dshape.shape:  # not a collection
