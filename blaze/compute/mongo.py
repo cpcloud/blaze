@@ -323,11 +323,11 @@ def post_compute(e, c, d):
     return post_compute(e, MongoQuery(c, ()), d)
 
 
-@dispatch(Field, MongoQuery)
-def post_compute_fields(e, q):
-    return toolz.merge(*map(itemgetter('$project'),
-                        (compute_up(getattr(e, f), q).query[1]
-                            for f in e.fields)))
+def get_projection(expr, query):
+    fields = expr.fields
+    subfields = [compute_up(getattr(expr, f), query).query[-1] for f in fields]
+    proj_subfields = [scope.get('$project') for scope in subfields]
+    return toolz.merge(*filter(None, proj_subfields))
 
 
 @dispatch(Expr, MongoQuery, dict)
@@ -342,7 +342,8 @@ def post_compute(e, q, d):
     http://docs.mongodb.org/manual/core/aggregation-pipeline/
     """
 
-    res = dict((col, 1) for col in e.fields)
+    res = get_projection(e, q)
+
     # remove mongo identifier
     d = {'$project': toolz.merge({'_id': 0}, res)}
     q = q.append(d)

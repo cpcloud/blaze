@@ -66,8 +66,6 @@ def nested_data(db):
 
 @pytest.yield_fixture
 def date_data(db):
-    import numpy as np
-    import pandas as pd
     n = 3
     d = {'name': ['Alice', 'Bob', 'Joe'],
          'when': [datetime(2010, 1, 1, i) for i in [1, 2, 3]],
@@ -352,9 +350,10 @@ def test_datetime_access(date_data):
                 list(compute(getattr(t.when, attr), py_data))
 
 
+nested_dshape =  'var * {name: string, payments: var * {amount: int32, when: datetime}}'
+
 def test_nested_selection(nested_data):
-    dshape = 'var * {name: string, payments: var * {amount: int32, when: datetime}}'
-    t = Symbol('t', dshape)
+    t = Symbol('t', nested_dshape)
     e = t.payments.amount
     result = compute(e, nested_data)
     r = list(result)
@@ -362,8 +361,7 @@ def test_nested_selection(nested_data):
 
 
 def test_selection_with_nested_dshape(nested_data):
-    dshape = 'var * {name: string, payments: var * {amount: int32, when: datetime}}'
-    t = Symbol('t', dshape)
+    t = Symbol('t', nested_dshape)
     e = t.payments
     result = compute(e, nested_data)
     r = list(result)
