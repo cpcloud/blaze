@@ -342,9 +342,7 @@ def post_compute(e, q, d):
     http://docs.mongodb.org/manual/core/aggregation-pipeline/
     """
 
-    if isinstance(Expr, Field):
-    else:
-        res = dict((col, 1) for col in e.fields)
+    res = dict((col, 1) for col in e.fields)
     # remove mongo identifier
     d = {'$project': toolz.merge({'_id': 0}, res)}
     q = q.append(d)
