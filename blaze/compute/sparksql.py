@@ -11,11 +11,13 @@ from __future__ import absolute_import, division, print_function
 from toolz import pipe
 from toolz.curried import filter, map
 
+from odo import discover
+
 from ..dispatch import dispatch
 from ..expr import Expr, symbol
 from .core import compute
 from .utils import literalquery, istable, make_sqlalchemy_table
-from .spark import Dummy
+from .spark import Dummy, SparkDataFrame
 
 __all__ = []
 
@@ -60,3 +62,18 @@ def compute_down(expr, data, **kwargs):
     # interpolate params
     compiled = literalquery(query, dialect=HiveDialect())
     return data.sql(str(compiled))
+
+
+@dispatch(Expr, SparkDataFrame)
+def compute_down(expr, data, **kwargs):
+    ctx = data.sql_ctx
+    root = symbol('_', discover(ctx))
+
+    # get our SparkDataFrame as a Field on the database
+    leaf, = expr._leaves()
+    new_leaf = getattr(root, leaf._name)
+
+    # rewrite df.<expr> as _.df.<expr> where _ is the symbolic representation
+    # of the SQLContext
+    new_expr = expr._subs({leaf: new_leaf})
+    return compute_down(new_expr, ctx, **kwargs)

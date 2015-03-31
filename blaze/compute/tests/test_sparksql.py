@@ -353,3 +353,13 @@ def test_by_with_date(ctx, db, attr):
     result = odo(compute(expr, ctx), set)
     expected = odo(compute(expr, {db: {'dates': date_df}}), set)
     assert result == expected
+
+
+def test_compute_on_frame(ctx, db):
+    expr = db.t.amount.mean()
+    expected = odo(compute(expr, ctx), float)
+
+    t = symbol('t', db.t.dshape)
+    expr = t.amount.mean()
+    result = odo(compute(expr, ctx.table('t')), float)
+    assert result == expected
