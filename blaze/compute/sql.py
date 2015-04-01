@@ -18,7 +18,7 @@ from __future__ import absolute_import, division, print_function
 
 import sqlalchemy as sa
 import sqlalchemy
-from sqlalchemy import sql, Table, MetaData, Column
+from sqlalchemy import sql, Table, MetaData
 from sqlalchemy.sql import Selectable, Select
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.elements import ClauseElement, ColumnElement
@@ -33,10 +33,9 @@ from odo.backends.sql import metadata_of_engine
 from ..dispatch import dispatch
 from ..expr import Projection, Selection, Field, Broadcast, Expr
 from ..expr import (BinOp, UnaryOp, USub, Join, mean, var, std, Reduction,
-                    count, FloorDiv, UnaryStringFunction, DateTime,
-                    Millisecond, Microsecond)
+                    count, FloorDiv, UnaryStringFunction, strlen, DateTime)
 from ..expr import nunique, Distinct, By, Sort, Head, Label, ReLabel, Merge
-from ..expr import common_subexpression, Summary, Like, nelements, DateTime
+from ..expr import common_subexpression, Summary, Like, nelements
 from ..compatibility import reduce
 from .core import compute_up, compute, base
 from ..utils import listpack
@@ -74,7 +73,8 @@ def compute_up(t, s, **kwargs):
 def compute_up(t, s, **kwargs):
     d = dict((t._scalars[0][c], list(inner_columns(s))[i])
              for i, c in enumerate(t._scalars[0].fields))
-    result = compute(t._scalar_expr, d, post_compute=False)
+    name = t._scalar_expr._name
+    result = compute(t._scalar_expr, d, post_compute=False).label(name)
 
     s = copy(s)
     s.append_column(result)
@@ -85,7 +85,8 @@ def compute_up(t, s, **kwargs):
 def compute_up(t, s, **kwargs):
     d = dict((t._scalars[0][c], list(inner_columns(s))[i])
              for i, c in enumerate(t._scalars[0].fields))
-    return compute(t._scalar_expr, d, post_compute=False)
+    name = t._scalar_expr._name
+    return compute(t._scalar_expr, d, post_compute=False).label(name)
 
 
 @dispatch(BinOp, ColumnElement)
@@ -566,14 +567,31 @@ def compute_up(t, s, **kwargs):
 
 
 string_func_names = {
-    'strlen': 'length'
+    # <blaze function name>: <SQL function name>
 }
 
 
-@dispatch(UnaryStringFunction, Column)
+# TODO: remove if the alternative fix goes into PyHive
+@compiles(sa.sql.functions.Function, 'hive')
+def compile_char_length_on_hive(element, compiler, **kwargs):
+    assert len(element.clauses) == 1, \
+        'char_length must have a single clause, got %s' % list(element.clauses)
+    if element.name == 'char_length':
+        return compiler.visit_function(sa.func.length(*element.clauses),
+                                       **kwargs)
+    return compiler.visit_function(element, **kwargs)
+
+
+@dispatch(strlen, ColumnElement)
 def compute_up(expr, data, **kwargs):
-    name = type(expr).__name__
-    return getattr(sa.sql.func, string_func_names.get(name, name))(data)
+    return sa.sql.functions.char_length(data).label(expr._name)
+
+
+@dispatch(UnaryStringFunction, ColumnElement)
+def compute_up(expr, data, **kwargs):
+    func_name = type(expr).__name__
+    func_name = string_func_names.get(func_name, func_name)
+    return getattr(sa.sql.func, func_name)(data).label(expr._name)
 
 
 @toolz.memoize
