@@ -29,7 +29,7 @@ New developers likely only need to interact with one or two of these libraries s
     git clone git://github.com/blaze/blaze.git  # only clone blaze and odo
     git clone git://github.com/blaze/odo.git  # only clone blaze and odo
 
-.. _DyND: https://github.com/blaze/dynd-python
+.. _DyND: https://github.com/libdynd/dynd-python
 .. _Odo: https://github.com/blaze/odo
 .. _Dask: https://github.com/blaze/dask
 .. _Blaze: https://github.com/blaze/blaze

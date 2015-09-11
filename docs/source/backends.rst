@@ -48,7 +48,7 @@ The prevalance of SQL among data technologies makes this backend particularly
 useful.  Databases like Impala and Hive have SQLAlchemy dialects, enabling
 easy Blaze interoperation.
 
-`MongoDB <http://www.mongodb.org/>`_
+`MongoDB <https://www.mongodb.org/>`_
 -------------------------------------
 
 Blaze drives MongoDB through the `pymongo
