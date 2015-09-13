@@ -122,12 +122,20 @@ class Expr(Node):
 
     @property
     def fields(self):
+        fields = []
+        dship = self.dship
         if isinstance(self.dshape.measure, Record):
-            return self.dshape.measure.names
-        name = getattr(self, '_name', None)
-        if name is not None:
-            return [self._name]
-        return []
+            fields.extend(self.dshape.measure.names)
+        else:
+            name = getattr(self, '_name', None)
+            if name is not None:
+                fields.append(name)
+        if dship:
+            fields.extend(concat(
+                dship[t]['columns']
+                for (t, _), in dship[self._name]['foreign'].items()
+            ))
+        return fields
 
     def _len(self):
         try:
