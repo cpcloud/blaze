@@ -61,7 +61,6 @@ from ..expr import (
     Shift, BinaryMath, Pow
 )
 
-from ..expr.broadcast import broadcast_collect
 from ..expr.math import isnan
 
 from ..compatibility import reduce
@@ -98,24 +97,35 @@ def compute_up(t, s, **kwargs):
     return s.c.get(t._name)
 
 
-@dispatch(Broadcast, Select)
-def compute_up(t, s, **kwargs):
-    cols = list(inner_columns(s))
-    d = dict((t._scalars[0][c], cols[i])
-             for i, c in enumerate(t._scalars[0].fields))
-    result = compute(t._scalar_expr, d, post_compute=False).label(t._name)
+# @dispatch(Broadcast, Select)
+# def compute_up(t, s, **kwargs):
+#     cols = list(inner_columns(s))
+#     d = {t._scalars[0][c]: cols[i] for i, c in enumerate(t._scalars[0].fields)}
+#     result = compute(t._scalar_expr, d, post_compute=False).label(t._name)
 
-    s = copy(s)
-    s.append_column(result)
-    return s.with_only_columns([result])
+#     s = copy(s)
+#     s.append_column(result)
+#     return s.with_only_columns([result])
 
 
-@dispatch(Broadcast, Selectable)
-def compute_up(t, s, **kwargs):
-    cols = list(inner_columns(s))
-    d = dict((t._scalars[0][c], cols[i])
-             for i, c in enumerate(t._scalars[0].fields))
-    return compute(t._scalar_expr, d, post_compute=False).label(t._name)
+# @dispatch(Broadcast, ColumnElement, Selectable)
+# def compute_up(t, column, selectable, **kwargs):
+#     cols = list(inner_columns(selectable))
+#     d = dict((t._scalars[0][c], cols[i])
+#              for i, c in enumerate(t._scalars[0].fields))
+#     result = compute(t._scalar_expr, d, post_compute=False).label(t._name)
+
+#     s = copy(s)
+#     s.append_column(result)
+#     return s.with_only_columns([result])
+
+
+# @dispatch(Broadcast, Selectable)
+# def compute_up(t, s, **kwargs):
+#     cols = list(inner_columns(s))
+#     d = dict((t._scalars[0][c], cols[i])
+#              for i, c in enumerate(t._scalars[0].fields))
+#     return compute(t._scalar_expr, d, post_compute=False).label(t._name)
 
 
 @dispatch(Concat, (Select, Selectable), (Select, Selectable))
@@ -154,9 +164,17 @@ def compute_up(t, data, **kwargs):
         return t.op(t.lhs, column)
 
 
+def overize(element):
+    return getattr(element, 'element', element).over().label(element.name)
+
+
 @compute_up.register(BinOp, (ColumnElement, base), ColumnElement)
 @compute_up.register(BinOp, ColumnElement, base)
 def binop_sql(t, lhs, rhs, **kwargs):
+    if isscalar(t.lhs.dshape) and iscollection(t.rhs.dshape):
+        lhs = overize(lhs)
+    if isscalar(t.rhs.dshape) and iscollection(t.lhs.dshape):
+        rhs = overize(rhs)
     return t.op(lhs, rhs)
 
 
@@ -970,11 +988,6 @@ def engine_of(x):
     if isinstance(x, Table):
         return x.metadata.bind
     raise NotImplementedError("Can't deterimine engine of %s" % x)
-
-
-@dispatch(Expr, ClauseElement)
-def optimize(expr, _):
-    return broadcast_collect(expr)
 
 
 @dispatch(Field, sa.MetaData)

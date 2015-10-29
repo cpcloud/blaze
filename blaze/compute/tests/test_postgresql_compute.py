@@ -11,6 +11,8 @@ import pandas as pd
 
 import pandas.util.testing as tm
 
+import sqlalchemy as sa
+
 from odo import odo, resource, drop, discover
 from blaze import symbol, compute, concat, join, sin, cos, radians, atan2
 from blaze import sqrt, transform, Data
@@ -319,3 +321,13 @@ def test_coerce_on_select(nyc):
 def test_interactive_len(sql):
     t = Data(sql)
     assert len(t) == int(t.count())
+
+
+def test_column_divided_by_max(nyc):
+    t = symbol('nyc', discover(nyc))
+    expr = t.passenger_count / t.passenger_count.max()
+    result = compute(expr, nyc)
+    expected = sa.select([
+        nyc.c.passenger_count / sa.func.max(nyc.c.passenger_count).over()
+    ])
+    assert result.execute().fetchall() == expected.execute().fetchall()
