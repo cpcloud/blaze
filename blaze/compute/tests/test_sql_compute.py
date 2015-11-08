@@ -726,6 +726,7 @@ def test_clean_join():
     assert (normalize(str(result)) == normalize(expected1) or
             normalize(str(result)) == normalize(expected2))
 
+
 def test_like():
     expr = t.like(name='Alice*')
     assert normalize(str(compute(expr, s))) == normalize("""
@@ -743,12 +744,15 @@ def test_strlen():
 
 def test_columnwise_on_complex_selection():
     result = str(select(compute(t[t.amount > 0].amount + 1, s)))
-    assert normalize(result) == \
-        normalize("""
-    SELECT accounts.amount + :amount_1 AS amount
-    FROM accounts
-    WHERE accounts.amount > :amount_2
-    """)
+    expected = """
+    SELECT
+        accounts.amount + :amount_1 AS amount
+    FROM
+        accounts
+    WHERE
+        accounts.amount > :amount_2
+    """
+    assert normalize(result) == normalize(expected)
 
 
 def test_reductions_on_complex_selections():
@@ -1766,7 +1770,7 @@ def test_attribute_on_filter_transform_groupby():
 
 
 def test_label_projection():
-    tbl = t[(t.name == 'Alice')]
+    tbl = t[t.name == 'Alice']
     tbl = transform(tbl, new_amount=tbl.amount + 1, one_two=tbl.amount * 2)
     expr = tbl[['new_amount', 'one_two']]
 

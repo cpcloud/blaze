@@ -154,14 +154,15 @@ def compute_up(t, data, **kwargs):
 
 
 @dispatch(BinOp, Select)
-def compute_up(t, data, **kwargs):
+def compute_up(expr, data, **kwargs):
     assert len(data.c) == 1, \
         'Select cannot have more than a single column when doing arithmetic'
-    column = first(data.inner_columns)
-    if isinstance(t.lhs, Expr):
-        return t.op(column, t.rhs)
+    column = first(getattr(data, 'inner_columns', data.columns))
+    if isinstance(expr.lhs, Expr):
+        result = expr.op(column, expr.rhs)
     else:
-        return t.op(t.lhs, column)
+        result = expr.op(expr.lhs, column)
+    return reconstruct_select([result.label(expr._name)], data)
 
 
 def overize(element):
@@ -175,73 +176,75 @@ def binop_sql(t, lhs, rhs, **kwargs):
         lhs = overize(lhs)
     if isscalar(t.rhs.dshape) and iscollection(t.lhs.dshape):
         rhs = overize(rhs)
-    return t.op(lhs, rhs)
+    return t.op(lhs, rhs).label(t._name)
 
 
 @dispatch(Pow, ColumnElement)
 def compute_up(t, data, **kwargs):
     if isinstance(t.lhs, Expr):
-        return sa.func.pow(data, t.rhs)
+        return sa.func.pow(data, t.rhs).label(t._name)
     else:
-        return sa.func.pow(t.lhs, data)
+        return sa.func.pow(t.lhs, data).label(t._name)
 
 
 @dispatch(Pow, Select)
 def compute_up(t, data, **kwargs):
     assert len(data.c) == 1, \
         'Select cannot have more than a single column when doing arithmetic'
-    column = first(data.inner_columns)
+    column = first(getattr(data, 'inner_columns', data.columns))
     if isinstance(t.lhs, Expr):
-        return sa.func.pow(column, t.rhs)
+        result = sa.func.pow(column, t.rhs)
     else:
-        return sa.func.pow(t.lhs, column)
+        result = sa.func.pow(t.lhs, column)
+    return reconstruct_select([result], data)
 
 
 @compute_up.register(Pow, (ColumnElement, base), ColumnElement)
 @compute_up.register(Pow, ColumnElement, base)
 def binop_sql_pow(t, lhs, rhs, **kwargs):
-    return sa.func.pow(lhs, rhs)
+    return sa.func.pow(lhs, rhs).label(t._name)
 
 
 @dispatch(BinaryMath, ColumnElement)
 def compute_up(t, data, **kwargs):
     op = getattr(sa.func, type(t).__name__)
     if isinstance(t.lhs, Expr):
-        return op(data, t.rhs)
+        return op(data, t.rhs).label(t._name)
     else:
-        return op(t.lhs, data)
+        return op(t.lhs, data).label(t._name)
 
 
 @dispatch(BinaryMath, Select)
 def compute_up(t, data, **kwargs):
     assert len(data.c) == 1, \
         'Select cannot have more than a single column when doing arithmetic'
-    column = first(data.inner_columns)
+    column = first(getattr(data, 'inner_columns', data.columns))
     op = getattr(sa.func, type(t).__name__)
     if isinstance(t.lhs, Expr):
-        return op(column, t.rhs)
+        result = op(column, t.rhs)
     else:
-        return op(t.lhs, column)
+        result = op(t.lhs, column)
+    return reconstruct_select([result.label(t._name)], data)
 
 
 @compute_up.register(BinaryMath, (ColumnElement, base), ColumnElement)
 @compute_up.register(BinaryMath, ColumnElement, base)
 def binary_math_sql(t, lhs, rhs, **kwargs):
-    return getattr(sa.func, type(t).__name__)(lhs, rhs)
+    return getattr(sa.func, type(t).__name__)(lhs, rhs).label(t._name)
 
 
 @compute_up.register(BinaryMath, Select, base)
 def binary_math_sql_select(t, lhs, rhs, **kwargs):
     left, right = first(lhs.inner_columns), rhs
     result = getattr(sa.func, type(t).__name__)(left, right)
-    return reconstruct_select([result], lhs)
+    return reconstruct_select([result.label(t._name)], lhs)
 
 
 @compute_up.register(BinaryMath, base, Select)
 def binary_math_sql_select(t, lhs, rhs, **kwargs):
     left, right = lhs, first(rhs.inner_columns)
     result = getattr(sa.func, type(t).__name__)(left, right)
-    return reconstruct_select([result], rhs)
+    return reconstruct_select([result.label(t._name)], rhs)
 
 
 @compute_up.register(BinaryMath, Select, Select)
@@ -249,21 +252,22 @@ def binary_math_sql_select(t, lhs, rhs, **kwargs):
     left, right = first(lhs.inner_columns), first(rhs.inner_columns)
     result = getattr(sa.func, type(t).__name__)(left, right)
     assert lhs.table == rhs.table
-    return reconstruct_select([result], lhs.table)
+    return reconstruct_select([result.label(t._name)], lhs.table)
 
 
 @dispatch(FloorDiv, ColumnElement)
 def compute_up(t, data, **kwargs):
     if isinstance(t.lhs, Expr):
-        return sa.func.floor(data / t.rhs)
+        result = sa.func.floor(data / t.rhs)
     else:
-        return sa.func.floor(t.rhs / data)
+        result = sa.func.floor(t.rhs / data)
+    return result.label(t._name)
 
 
 @compute_up.register(FloorDiv, (ColumnElement, base), ColumnElement)
 @compute_up.register(FloorDiv, ColumnElement, base)
 def binop_sql(t, lhs, rhs, **kwargs):
-    return sa.func.floor(lhs / rhs)
+    return sa.func.floor(lhs / rhs).label(t._name)
 
 
 @dispatch(isnan, ColumnElement)
@@ -274,7 +278,20 @@ def compute_up(t, s, **kwargs):
 @dispatch(UnaryOp, ColumnElement)
 def compute_up(t, s, **kwargs):
     sym = t.symbol
-    return getattr(t, 'op', getattr(safuncs, sym, getattr(sa.func, sym)))(s)
+    return getattr(
+        t, 'op', getattr(safuncs, sym, getattr(sa.func, sym))
+    )(s).label(t._name)
+
+
+@dispatch(UnaryOp, sa.sql.Select)
+def compute_up(expr, data, **kwargs):
+    assert len(data.c) == 1, 'more than 1 column'
+    sym = expr.symbol
+    column = first(getattr(data, 'inner_columns', data.columns))
+    result = getattr(
+        expr, 'op', getattr(safuncs, sym, getattr(sa.func, sym))
+    )(column)
+    return reconstruct_select([result.label(expr._name)], data)
 
 
 @dispatch(Selection, sa.sql.ColumnElement)
@@ -284,15 +301,20 @@ def compute_up(expr, data, scope=None, **kwargs):
 
 
 @dispatch(Selection, Selectable)
-def compute_up(t, s, scope=None, **kwargs):
-    ns = dict((t._child[col.name], col)
-              for col in getattr(s, 'inner_columns', s.columns))
-    predicate = compute(t.predicate, toolz.merge(ns, scope),
-                        optimize=False, post_compute=False)
+def compute_up(expr, data, scope=None, **kwargs):
+    ns = dict((expr._child[col.name], col)
+              for col in getattr(data, 'inner_columns', data.columns))
+    predicate = compute(
+        expr.predicate,
+        toolz.merge(ns, scope),
+        optimize=False,
+        post_compute=False
+    )
+    import ipdb; ipdb.set_trace()
     try:
-        return s.where(predicate)
+        return data.where(predicate)
     except AttributeError:
-        return select([s]).where(predicate)
+        return data.select().where(predicate)
 
 
 def select(s):
@@ -772,6 +794,7 @@ def compute_up(t, s, **kwargs):
 
 @dispatch(Expr, ScalarSelect)
 def post_compute(t, s, **kwargs):
+
     return s.element
 
 
