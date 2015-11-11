@@ -76,6 +76,12 @@ def bank(db):
 
 
 @pytest.yield_fixture
+def bank_dates(db):
+    coll = db.bank_dates
+    coll =
+
+
+@pytest.yield_fixture
 def missing_vals(db):
     data = [{'x': 1, 'z': 100},
             {'x': 2, 'y': 20, 'z': 200},
@@ -396,3 +402,7 @@ def test_isin_fails(bank):
     expr = t[t.amount.isin([100])]
     result = compute(expr, bank)
     assert result == compute(t[t.amount == 100], bank)
+
+
+def test_datetime_selection(bank_dates):
+    pass
