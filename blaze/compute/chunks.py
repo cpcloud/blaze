@@ -18,7 +18,7 @@ from .pmap import get_default_pmap
 __all__ = ['Cheap', 'compute_chunk', 'compute_down']
 
 
-Cheap = (Head, ElemWise, Distinct, Symbol)
+Cheap = Head, ElemWise, Distinct, Symbol
 
 
 @dispatch(Head, Chunks)
