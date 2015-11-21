@@ -72,7 +72,7 @@ def test_multiple_csv_files():
          'mult2.csv': 'name,val\nAlice,3\nCharlie,4'}
 
     data = [('Alice', 1), ('Bob', 2), ('Alice', 3), ('Charlie', 4)]
-    with filetexts(d) as fns:
+    with filetexts(d):
         r = resource('mult*.csv')
         s = symbol('s', discover(r))
 
@@ -85,25 +85,31 @@ def test_multiple_csv_files():
             assert a == b
 
 
-def test_csv_join():
-    d = {'a.csv': 'a,b,c\n0,1,2\n3,4,5',
-         'b.csv': 'c,d,e\n2,3,4\n5,6,7'}
+def test_join():
+    d = {
+        'a.csv': 'a,b,c\n0,1,2\n3,4,5',
+        'b.csv': 'c,d,e\n2,3,4\n5,6,7'
+    }
 
     with filetexts(d):
         resource_a = resource('a.csv')
         resource_b = resource('b.csv')
         a = symbol('a', discover(resource_a))
         b = symbol('b', discover(resource_b))
+        expr = join(a, b, 'c')
+        result = compute(expr, {a: resource_a, b: resource_b})
         tm.assert_frame_equal(
-            odo(
-                compute(join(a, b, 'c'), {a: resource_a, b: resource_b}),
-                pd.DataFrame,
-            ),
+            odo(result, pd.DataFrame),
 
             # windows needs explicit int64 construction b/c default is int32
-            pd.DataFrame(np.array([[2, 0, 1, 3, 4],
-                                   [5, 3, 4, 6, 7]], dtype='int64'),
-                         columns=list('cabde'))
+            pd.DataFrame(
+                np.array(
+                    [[2, 0, 1, 3, 4],
+                     [5, 3, 4, 6, 7]],
+                    dtype='int64'
+                ),
+                columns=list('cabde')
+            )
         )
 
 
@@ -119,11 +125,11 @@ def test_concat():
         b = symbol('b', discover(b_rsc))
 
         tm.assert_frame_equal(
-            odo(
-                compute(concat(a, b), {a: a_rsc, b: b_rsc}), pd.DataFrame,
-            ),
+            odo(compute(concat(a, b), {a: a_rsc, b: b_rsc}), pd.DataFrame),
 
             # windows needs explicit int64 construction b/c default is int32
-            pd.DataFrame(np.arange(1, 9, dtype='int64').reshape(4, 2),
-                         columns=list('ab')),
+            pd.DataFrame(
+                np.arange(1, 9, dtype='int64').reshape(4, 2),
+                columns=list('ab')
+            ),
         )
