@@ -450,7 +450,7 @@ def compute(expr, d, **kwargs):
     expr2, d2 = swap_resources_into_scope(expr, d)
     if pre_compute_:
         d3 = {
-            e: pre_compute_(e, dat, **kwargs)
+            e: pre_compute_(expr2, dat, **kwargs)
             for e, dat in d2.items()
             if e in expr2
         }
