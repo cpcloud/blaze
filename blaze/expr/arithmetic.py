@@ -10,7 +10,7 @@ from datashape.predicates import isscalar, isboolean, isnumeric, isdatelike
 from datashape import coretypes as ct, discover, unsigned, promote, optionify
 
 from .core import parenthesize, eval_str
-from .expressions import Expr, shape, ElemWise
+from .expressions import Expr, shape, ElemWise, literal
 from ..dispatch import dispatch
 from ..compatibility import _strtypes
 
@@ -234,7 +234,7 @@ def scalar_coerce(ds, val):
     return scalar_coerce(ds.ty, val) if val is not None else None
 
 
-@dispatch((ct.Record, ct.Mono, ct.Option, DataShape), Expr)
+@dispatch((ct.Record, ct.Option, DataShape), Expr)
 def scalar_coerce(ds, val):
     return val
 
@@ -258,9 +258,9 @@ def scalar_coerce(_, val):
     return pd.Timestamp(val)
 
 
-@dispatch(ct.CType, _strtypes)
+@dispatch(ct.CType, (_strtypes, object))
 def scalar_coerce(dt, val):
-    return np.asscalar(np.asarray(val, dtype=dt.to_numpy_dtype()))
+    return literal(np.asscalar(np.asarray(val, dtype=dt.to_numpy_dtype())))
 
 
 @dispatch(ct.Record, object)
