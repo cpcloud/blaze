@@ -1,15 +1,21 @@
 from __future__ import absolute_import, division, print_function
 
 from keyword import iskeyword
+
 import re
+import functools
 
 import datashape
 from datashape import dshape, DataShape, Record, Var, Mono, Fixed
 from datashape.predicates import isscalar, iscollection, isboolean, isrecord
+
 import numpy as np
+
 from odo.utils import copydoc
+
 import toolz
-from toolz import concat, memoize, partial, first
+
+from toolz import concat, memoize, partial, first, identity
 from toolz.curried import map, filter
 
 from ..compatibility import _strtypes, builtins, boundmethod, PY2
@@ -44,6 +50,7 @@ __all__ = [
     'selection',
     'shape',
     'symbol',
+    'literal',
 ]
 
 
@@ -238,6 +245,145 @@ class Expr(Node):
             except AttributeError:
                 pass
         return True
+
+
+def wrap(f):
+    @functools.wraps(f)
+    def wrapper(self, other):
+        if isinstance(other, literal) or not isinstance(other, Expr):
+            t = literal
+        else:
+            t = identity
+        return t(f(self, other))
+    return wrapper
+
+
+class literal(Expr):
+    """Represent constants as blaze expressions
+    """
+    __slots__ = '_hash', '_child'
+
+    def _resources(self):
+        return {self: self.value}
+
+    @property
+    def value(self):
+        return self._child
+
+    def __hash__(self):
+        return hash((type(self), self.value))
+
+    @property
+    def dshape(self):
+        return DataShape(discover(self.value))
+
+    @property
+    def schema(self):
+        return DataShape(self.dshape.measure)
+
+    def __str__(self):
+        return '%s(%r)' % (type(self).__name__, self.value)
+
+    def __int__(self):
+        return int(self.value)
+
+    def __float__(self):
+        return float(self.value)
+
+    def __bool__(self):
+        return bool(self.value)
+
+    def __nonzero__(self):
+        return self.value.__nonzero__()
+
+    def __iter__(self):
+        return iter(self.value)
+
+    @wrap
+    def __eq__(self, other):
+        return self.value == getattr(other, 'value', other)
+
+    @wrap
+    def __ne__(self, other):
+        return self.value != getattr(other, 'value', other)
+
+    @wrap
+    def __lt__(self, other):
+        return self.value < getattr(other, 'value', other)
+
+    @wrap
+    def __gt__(self, other):
+        return self.value > getattr(other, 'value', other)
+
+    @wrap
+    def __le__(self, other):
+        return self.value <= getattr(other, 'value', other)
+
+    @wrap
+    def __ge__(self, other):
+        return self.value >= getattr(other, 'value', other)
+
+    @wrap
+    def __add__(self, other):
+        return self.value + getattr(other, 'value', other)
+
+    @wrap
+    def __radd__(self, other):
+        return self + getattr(other, 'value', other)
+
+    @wrap
+    def __sub__(self, other):
+        return self.value - getattr(other, 'value', other)
+
+    @wrap
+    def __rsub__(self, other):
+        t = literal if isinstance(other, literal) else identity
+        return t(getattr(other, 'value', other) - self.value)
+
+    @wrap
+    def __mul__(self, other):
+        return self.value * getattr(other, 'value', other)
+
+    @wrap
+    def __rmul__(self, other):
+        return getattr(other, 'value', other) * self.value
+
+    @wrap
+    def __div__(self, other):
+        return self.value / getattr(other, 'value', other)
+
+    @wrap
+    def __rdiv__(self, other):
+        return getattr(other, 'value', other) / self.value
+
+    @wrap
+    def __truediv__(self, other):
+        return self.value / getattr(other, 'value', other)
+
+    @wrap
+    def __rtruediv__(self, other):
+        return getattr(other, 'value', other) / self.value
+
+    @wrap
+    def __floordiv__(self, other):
+        return self.value // getattr(other, 'value', other)
+
+    @wrap
+    def __rfloordiv__(self, other):
+        return getattr(other, 'value', other) // self.value
+
+    @wrap
+    def __pow__(self, other):
+        return pow(self.value, getattr(other, 'value', other))
+
+    @wrap
+    def __rpow__(self, other):
+        return pow(getattr(other, 'value', other), self.value)
+
+    @property
+    def _name(self):
+        return str(self)
+
 
 _symbol_cache = dict()
 
