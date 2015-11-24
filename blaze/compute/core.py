@@ -3,12 +3,12 @@ from __future__ import absolute_import, division, print_function
 import numbers
 from datetime import date, datetime
 import toolz
-from toolz import first, concat, memoize, unique, assoc
+from toolz import first, unique, assoc
 import itertools
 from collections import Iterator
 
 from ..compatibility import basestring
-from ..expr import Expr, Field, Symbol, symbol, eval_str
+from ..expr import Expr, Field, Symbol, symbol, literal
 from ..dispatch import dispatch
 
 __all__ = ['compute', 'compute_up']
@@ -479,3 +479,10 @@ def compute(expr, d, **kwargs):
 @dispatch(Field, dict)
 def compute_up(expr, data, **kwargs):
     return data[expr._name]
+
+
+@dispatch(literal, object)
+def compute_up(expr, data, **kwargs):
+    if expr.value != data:
+        raise ValueError('expr.value != data -> %r != %r' % (expr.value, data))
+    return data
