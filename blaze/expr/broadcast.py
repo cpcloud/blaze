@@ -7,7 +7,7 @@ from toolz import curry
 from datashape import DataShape, iscollection
 
 from .collections import Shift
-from .expressions import Field, Map, ElemWise, symbol, shape, Coerce
+from .expressions import Field, Map, ElemWise, symbol, shape, Coerce, literal
 from .arithmetic import maxshape, UnaryOp, BinOp
 from .datetime import DateTime
 
@@ -103,14 +103,14 @@ def scalar_symbols(exprs):
     return scalars
 
 
-Broadcastable = (Map, Field, DateTime, UnaryOp, BinOp, Coerce, Shift)
-WantToBroadcast = (Map, DateTime, UnaryOp, BinOp, Coerce, Shift)
+Broadcastable = Map, Field, DateTime, UnaryOp, BinOp, Coerce, Shift
+WantToBroadcast = Map, DateTime, UnaryOp, BinOp, Coerce, Shift
 
 
 def broadcast_collect(expr,
                       broadcastable=Broadcastable,
                       want_to_broadcast=WantToBroadcast,
-                      no_recurse=None):
+                      no_recurse=literal):
     """ Collapse expression down using Broadcast - Tabular cases only
 
     Expressions of type Broadcastables are swallowed into Broadcast
@@ -119,13 +119,19 @@ def broadcast_collect(expr,
     >>> t = symbol('t', 'var * {x: int, y: int, z: int, when: datetime}')
     >>> expr = (t.x + 2*t.y).distinct()
 
-    >>> broadcast_collect(expr)
-    distinct(Broadcast(_children=(t,), _scalars=(t,), _scalar_expr=t.x + (2 * t.y)))
+    >>> broadcast_collect(expr) # +doctest: IGNORE_WHITESPACE
+    distinct(
+        Broadcast(_children=(t,), _scalars=(t,), _scalar_expr=t.x + (2 * t.y))
+    )
 
     >>> from blaze import exp
     >>> expr = t.x + 2 * exp(-(t.x - 1.3) ** 2)
-    >>> broadcast_collect(expr)
-    Broadcast(_children=(t,), _scalars=(t,), _scalar_expr=t.x + (2 * (exp(-((t.x - 1.3) ** 2)))))
+    >>> broadcast_collect(expr) # +doctest: IGNORE_WHITESPACE
+    Broadcast(
+        _children=(t,),
+        _scalars=(t,),
+        _scalar_expr=t.x + (2 * (exp(-((t.x - 1.3) ** 2))))
+    )
     """
     if (isinstance(expr, want_to_broadcast) and
             iscollection(expr.dshape)):
