@@ -248,7 +248,13 @@ def coerce_scalar(result, dshape):
 
 def expr_repr(expr, n=10):
     # Pure Expressions, not interactive
-    if not expr._resources():
+    # we also need to cover the case of only a subset of expressions having
+    # resources. this happens for literals
+    if not expr._resources() or not all(
+        st in scoped_expr
+        for scoped_expr in expr._resources()
+        for st in expr._subterms()
+    ):
         return str(expr)
 
     # Scalars
