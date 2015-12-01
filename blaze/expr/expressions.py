@@ -9,7 +9,8 @@ from datashape.predicates import isscalar, iscollection, isboolean, isrecord
 import numpy as np
 from odo.utils import copydoc
 import toolz
-from toolz import concat, memoize, partial, first
+from toolz import concat, memoize, partial, first, compose
+from operator import methodcaller, not_
 from toolz.curried import map, filter
 
 from ..compatibility import _strtypes, builtins, boundmethod, PY2
@@ -421,6 +422,44 @@ def projection(expr, names):
                          "where expression has names %s" %
                          (names, expr.fields))
     return Projection(expr, tuple(names))
+
+
+class Select(Projection):
+    __slots__ = '_hash', '_child', '_filt'
+
+    @property
+    def fields(self):
+        return [
+            c for c in self._child.fields
+            if self._filt(c)
+        ]
+
+
+@copydoc(Select)
+def select(child, filt):
+    if not callable(filt):
+        raise TypeError('object %r is not callable' % filt)
+    return Select(child, filt)
+
+
+def matches(regex):
+    return re.compile(regex).match
+
+
+def contains(regex):
+    return re.compile(regex).search
+
+
+def endswith(suffixes):
+    return methodcaller('endswith', suffixes)
+
+
+def startswith(prefixes):
+    return methodcaller('startswith', prefixes)
+
+
+def without(*columns):
+    return compose(not_, frozenset(columns).__contains__)
 
 
 def sanitize_index_lists(ind):
@@ -838,7 +877,7 @@ dshape_method_list.extend([
 
 schema_method_list.extend([
     (isscalar, set([label, relabel, coerce])),
-    (isrecord, set([relabel])),
+    (isrecord, set([relabel, select])),
 ])
 
 method_properties.update([shape, ndim])
